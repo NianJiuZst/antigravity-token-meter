@@ -1,0 +1,21 @@
+{
+  "name": "token-meter",
+  "displayName": "Token Meter",
+  "version": "1.1.0",
+  "description": "Track daily Antigravity token usage, cache hit rates, and official Google Gemini API costs with automatic lifecycle logging and a live side-pane dashboard.",
+  "logo": "assets/logo.svg",
+  "author": {
+    "name": "NianJiuZst",
+    "url": "https://github.com/NianJiuZst"
+  },
+  "homepage": "https://github.com/NianJiuZst/antigravity-token-meter",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NianJiuZst/antigravity-token-meter"
+  },
+  "suggestedPrompts": [
+    "Show my token usage and cost for today and the past 7 days",
+    "Which models and conversations used the most tokens this week?",
+    "Export my last 30 days of daily token usage and cost to CSV"
+  ]
+}

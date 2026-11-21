@@ -1,0 +1,6 @@
+{
+  "name": "token_meter_dashboard",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Token Meter live analytics sidecar for Antigravity"
+}

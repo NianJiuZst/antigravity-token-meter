@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Token Meter</title>
+  <script src="/preload.js"></script>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div id="loading" class="loading" aria-live="polite" aria-busy="true">
+    <div class="skel-bar" style="width: 45%; height: 16px;"></div>
+    <div class="skel-grid">
+      <div class="skel-card"></div>
+      <div class="skel-card"></div>
+      <div class="skel-card"></div>
+      <div class="skel-card"></div>
+    </div>
+    <div class="skel-chart"></div>
+    <p class="loading-caption">正在同步对话 Token 日志…</p>
+  </div>
+
+  <div id="app" class="app hidden">
+    <header class="header">
+      <div class="header-top">
+        <div class="title-wrap">
+          <h1 class="app-title">Token Meter</h1>
+          <span id="live-pill" class="live-pill" title="每 5 秒自动增量同步">
+            <span class="live-dot" aria-hidden="true"></span>
+            <span id="live-text">Live</span>
+          </span>
+        </div>
+        <div class="header-actions">
+          <button id="btn-currency" type="button" class="pill-btn" title="切换显示货币 (USD / CNY)">USD $</button>
+          <button id="btn-sync" type="button" class="icon-btn" title="立即同步最新日志" aria-label="立即同步">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M13.5 8a5.5 5.5 0 1 1-1.35-3.6M13.5 2.5v2.75h-2.75"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="range-row">
+        <div id="range-group" class="segmented" role="group" aria-label="统计周期">
+          <button type="button" class="seg-btn" data-days="1">今日</button>
+          <button type="button" class="seg-btn active" data-days="7">7天</button>
+          <button type="button" class="seg-btn" data-days="14">14天</button>
+          <button type="button" class="seg-btn" data-days="30">30天</button>
+          <button type="button" class="seg-btn" data-days="0">全部</button>
+        </div>
+        <span id="header-meta" class="header-meta"></span>
+      </div>
+
+      <nav class="tabs" role="tablist" aria-label="视图切换">
+        <button type="button" role="tab" class="tab active" data-tab="overview" aria-selected="true">总览</button>
+        <button type="button" role="tab" class="tab" data-tab="models" aria-selected="false">
+          模型 <span id="tab-count-models" class="tab-count"></span>
+        </button>
+        <button type="button" role="tab" class="tab" data-tab="sessions" aria-selected="false">
+          会话 <span id="tab-count-sessions" class="tab-count"></span>
+        </button>
+      </nav>
+    </header>
+
+    <main class="main">
+      <!-- Tab 1: Overview -->
+      <section id="panel-overview" class="tab-panel active" role="tabpanel">
+        <div id="kpi-grid" class="kpi-grid"></div>
+
+        <section class="card">
+          <div class="card-header">
+            <h2 class="card-title">每日趋势</h2>
+            <div class="segmented sm" role="group" aria-label="图表维度">
+              <button type="button" class="seg-btn active" data-metric="cost">费用</button>
+              <button type="button" class="seg-btn" data-metric="tokens">Token 构成</button>
+            </div>
+          </div>
+          <div id="chart-legend" class="chart-legend"></div>
+          <div id="chart-wrap" class="chart-wrap"></div>
+          <div id="chart-detail" class="chart-detail"></div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h2 class="card-title">每日明细</h2>
+            <button id="btn-export" type="button" class="ghost-btn sm">导出 CSV</button>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>日期</th>
+                  <th class="num">步数</th>
+                  <th class="num">输入</th>
+                  <th class="num">缓存读</th>
+                  <th class="num">输出</th>
+                  <th class="num">命中率</th>
+                  <th class="num">费用</th>
+                </tr>
+              </thead>
+              <tbody id="daily-tbody"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <!-- Tab 2: Models -->
+      <section id="panel-models" class="tab-panel" role="tabpanel">
+        <section class="card">
+          <div class="card-header">
+            <h2 class="card-title">按模型分布（Google 官方 API 定价）</h2>
+            <span id="models-subtitle" class="card-sub"></span>
+          </div>
+          <div id="models-list" class="models-list"></div>
+        </section>
+      </section>
+
+      <!-- Tab 3: Sessions -->
+      <section id="panel-sessions" class="tab-panel" role="tabpanel">
+        <div class="toolbar">
+          <input id="session-search" type="search" class="text-input" placeholder="搜索会话标题或 ID…" autocomplete="off">
+          <select id="session-sort" class="select-input" aria-label="排序方式">
+            <option value="cost">按费用排序</option>
+            <option value="tokens">按 Token 排序</option>
+            <option value="recent">按最近活跃</option>
+          </select>
+        </div>
+        <div id="sessions-list" class="sessions-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
