@@ -4,6 +4,16 @@ All notable changes to **Antigravity Token Meter** are documented in this file.
 
 ---
 
+## [1.2.0] - 2026-11-22
+
+### English
+- **Live Current-Conversation & Turn Monitor Card**: Added an always-accessible, click-to-expand live telemetry strip & card at the top of the side pane showing model, turn step count, current context occupancy (`tokens / window` + progress bar), turn output tokens, turn cumulative input (`new + cache read + cache hit rate`), total duration, and active-session TPS — with previous/next turn browsing and 3-second live updates.
+
+### 中文
+- **侧边栏新增当前会话 / 本轮实时监控卡片**：在侧边栏顶部常驻一条可点击展开/收起的实时摘要栏与卡片，展示当前模型、本轮步数、当前上下文占用（精确 Token / 窗口上限与进度条）、本轮输出、本轮累计输入（新增 + 读缓存 + 命中率）、总时长与当前会话 TPS，支持按轮次切换回看并每 3 秒自动刷新。
+
+---
+
 ## [1.1.0] - 2026-11-22
 
 ### English

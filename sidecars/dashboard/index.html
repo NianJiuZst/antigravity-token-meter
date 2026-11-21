@@ -63,6 +63,17 @@
     </header>
 
     <main class="main">
+      <!-- Live Current Conversation / Turn Card (always accessible beside chat) -->
+      <section id="live-turn-box" class="live-turn-box hidden" aria-label="当前会话实时统计">
+        <button id="live-turn-toggle" type="button" class="live-turn-bar" aria-expanded="true" aria-controls="live-turn-card">
+          <span id="live-turn-bar-text" class="live-turn-bar-text"></span>
+          <svg class="icon live-turn-chevron" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M4.5 6.25 8 9.75l3.5-3.5"/>
+          </svg>
+        </button>
+        <div id="live-turn-card" class="live-turn-card"></div>
+      </section>
+
       <!-- Tab 1: Overview -->
       <section id="panel-overview" class="tab-panel active" role="tabpanel">
         <div id="kpi-grid" class="kpi-grid"></div>

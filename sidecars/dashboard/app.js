@@ -1,10 +1,18 @@
 (() => {
-  const POLL_MS = 5000;
+  const POLL_MS = 3000;
   const $ = (id) => document.getElementById(id);
   const esc = (s) =>
     String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   const params = new URLSearchParams(location.search);
+  let savedCardOpen = true;
+  try {
+    const raw = localStorage.getItem('tm_live_card_open');
+    if (raw === '0') savedCardOpen = false;
+  } catch {
+    // ignore storage errors in restricted contexts
+  }
+
   const state = {
     days: 7,
     metric: 'cost', // 'cost' | 'tokens'
@@ -14,6 +22,9 @@
     selectedDate: null,
     sessionSearch: '',
     sessionSort: 'cost',
+    liveCardOpen: savedCardOpen,
+    liveConvId: '',
+    selectedTurnIdx: null, // null => auto-follow latest turn
     pollTimer: null,
     toastTimer: null,
   };
@@ -125,6 +136,121 @@
     el.classList.remove('hidden');
     clearTimeout(state.toastTimer);
     state.toastTimer = setTimeout(() => el.classList.add('hidden'), 2400);
+  }
+
+  function fmtWindow(tokens) {
+    const n = Number(tokens) || 0;
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`;
+    if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
+    return String(n);
+  }
+
+  function fmtDuration(sec) {
+    const s = Number(sec) || 0;
+    if (s <= 0) return '—';
+    if (s < 60) return `${s.toFixed(1)}s`;
+    if (s < 3600) return `${s.toFixed(1)}s`;
+    const hrs = Math.floor(s / 3600);
+    const mins = Math.floor((s % 3600) / 60);
+    return `${hrs}h ${mins}m`;
+  }
+
+  function renderLiveConversation(report) {
+    const box = $('live-turn-box');
+    const live = report.liveConversation;
+    if (!live || !Array.isArray(live.turns) || live.turns.length === 0) {
+      box.classList.add('hidden');
+      return;
+    }
+
+    if (live.convId !== state.liveConvId) {
+      state.liveConvId = live.convId;
+      state.selectedTurnIdx = null;
+    }
+
+    const totalTurns = live.turns.length;
+    const isAutoLatest = state.selectedTurnIdx === null || state.selectedTurnIdx >= totalTurns;
+    const idx = isAutoLatest ? totalTurns - 1 : Math.max(0, state.selectedTurnIdx - 1);
+    const turn = live.turns[idx];
+    const sess = live.session;
+
+    box.classList.remove('hidden');
+
+    const tpsVal = sess.tps > 0 ? `${sess.tps.toFixed(1)} tok/s` : '—';
+    const barParts = [
+      `<span class="live-bar-model">${esc(turn.modelLabel)}</span>`,
+      `<span class="live-bar-stat">In ${esc(fmtCompact(turn.totalInput))}</span>`,
+      `<span class="live-bar-stat">Out ${esc(fmtCompact(turn.output))}</span>`,
+      `<span class="live-bar-stat">Cache ${esc(fmtPct(turn.cacheHitRate))}</span>`,
+      ...(sess.tps > 0 ? [`<span class="live-bar-stat">${esc(tpsVal)}</span>`] : []),
+    ];
+    $('live-turn-bar-text').innerHTML = barParts.join('<span class="live-bar-dot">·</span>');
+
+    const toggleBtn = $('live-turn-toggle');
+    const cardEl = $('live-turn-card');
+    toggleBtn.setAttribute('aria-expanded', String(state.liveCardOpen));
+    cardEl.classList.toggle('hidden', !state.liveCardOpen);
+
+    const ctxPctNum = Math.round((turn.contextPct || 0) * 100);
+    const ctxBarW = Math.min(100, Math.max(0, ctxPctNum));
+    const ctxClass = ctxPctNum >= 90 ? ' danger' : ctxPctNum >= 75 ? ' warn' : '';
+    const durSec = turn.durationSec > 0 ? turn.durationSec : sess.durationSec;
+    const durPrefix = turn.durationSec > 0 ? '总时长' : '会话总时长';
+    const durTip = `本轮时长 ${fmtDuration(turn.durationSec)} · 当前会话累计活跃 ${fmtDuration(sess.durationSec)} · 共 ${fmtInt(sess.output)} 输出 Token`;
+    const turnCostStr = fmtMoney(turn.costUsd, report.prefs);
+
+    const pagerHtml =
+      totalTurns > 1
+        ? `
+        <span class="turn-pager" title="${esc(turn.prompt || `第 ${turn.turnIndex} 轮`)}">
+          <button type="button" class="turn-nav-btn" data-turn-nav="-1" ${idx === 0 ? 'disabled' : ''} aria-label="上一轮">‹</button>
+          <span class="turn-pager-label">第 ${turn.turnIndex}/${totalTurns} 轮</span>
+          <button type="button" class="turn-nav-btn" data-turn-nav="1" ${idx === totalTurns - 1 ? 'disabled' : ''} aria-label="下一轮">›</button>
+        </span>`
+        : '';
+
+    cardEl.innerHTML = `
+      <div class="live-card-head">
+        <div class="live-card-title-wrap">
+          <span class="live-card-model">${esc(turn.modelLabel)}</span>
+          ${live.isFallbackLatest ? '<span class="badge badge-fallback" title="独立打开模式，展示最近活跃会话">最近会话</span>' : ''}
+        </div>
+        <div class="live-card-right">
+          ${pagerHtml}
+          <span class="step-pill">${fmtInt(turn.steps)} 步</span>
+        </div>
+      </div>
+      <div class="live-card-rows">
+        <div class="live-row">
+          <span class="live-row-label">当前上下文</span>
+          <span class="live-row-val">${fmtInt(turn.contextTokens)} / ${esc(fmtWindow(turn.contextWindow))} (${ctxPctNum}%)</span>
+        </div>
+        <div class="ctx-bar-track" aria-hidden="true">
+          <div class="ctx-bar-fill${ctxClass}" style="width:${ctxBarW}%"></div>
+        </div>
+        <div class="live-row" title="本轮官方定价费用约 ${esc(turnCostStr)}">
+          <span class="live-row-label">本轮输出</span>
+          <span class="live-row-val">${fmtInt(turn.output)}</span>
+        </div>
+        <div class="live-row">
+          <span class="live-row-label">本轮累计输入</span>
+          <span class="live-row-val">新增 ${fmtInt(turn.input)} + 读缓存 ${fmtInt(turn.cacheRead)} <span class="live-row-muted">(命中率 ${esc(fmtPct(turn.cacheHitRate))})</span></span>
+        </div>
+        <div class="live-row" title="${esc(durTip)}">
+          <span class="live-row-label">速度与耗时</span>
+          <span class="live-row-val">${esc(tpsVal)} <span class="live-row-muted">(当前会话) · ${durPrefix}</span> ${esc(fmtDuration(durSec))}</span>
+        </div>
+      </div>
+    `;
+
+    cardEl.querySelectorAll('.turn-nav-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const delta = Number(btn.dataset.turnNav);
+        const nextTurn = Math.min(totalTurns, Math.max(1, turn.turnIndex + delta));
+        state.selectedTurnIdx = nextTurn === totalTurns ? null : nextTurn;
+        renderLiveConversation(report);
+      });
+    });
   }
 
   // ---------- Rendering ----------
@@ -480,6 +606,7 @@
     $('app').classList.remove('hidden');
 
     renderHeader(report);
+    renderLiveConversation(report);
     renderKpis(report);
     renderChart(report);
     renderDailyTable(report);
@@ -508,7 +635,7 @@
         pill.title = `同步异常: ${data.syncError}${data.syncedAt ? ` (上次成功: ${fmtRelTime(data.syncedAt)})` : ''}`;
         $('live-text').textContent = '同步异常';
       } else {
-        pill.title = data.syncedAt ? `每 5 秒自动增量同步 · 上次同步: ${fmtRelTime(data.syncedAt)}` : '每 5 秒自动增量同步';
+        pill.title = data.syncedAt ? `每 3 秒自动增量同步 · 上次同步: ${fmtRelTime(data.syncedAt)}` : '每 3 秒自动增量同步';
         $('live-text').textContent = 'Live';
       }
       if (data.unchanged) return;
@@ -541,6 +668,17 @@
   }
 
   // ---------- Event Wiring ----------
+  $('live-turn-toggle').addEventListener('click', () => {
+    state.liveCardOpen = !state.liveCardOpen;
+    try {
+      localStorage.setItem('tm_live_card_open', state.liveCardOpen ? '1' : '0');
+    } catch {
+      // ignore
+    }
+    $('live-turn-toggle').setAttribute('aria-expanded', String(state.liveCardOpen));
+    $('live-turn-card').classList.toggle('hidden', !state.liveCardOpen);
+  });
+
   document.querySelectorAll('.tab').forEach((btn) => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
   });

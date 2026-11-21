@@ -1,7 +1,7 @@
 {
   "name": "token-meter",
   "displayName": "Token Meter",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Track daily Antigravity token usage, cache hit rates, and official Google Gemini API costs with automatic lifecycle logging and a live side-pane dashboard.",
   "logo": "assets/logo.svg",
   "author": {

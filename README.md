@@ -19,7 +19,9 @@
 - **Exact Metrics (Not Estimates)**: Reads step-level `input_tokens`, `cache_read_tokens` (disjoint from uncached input), and `output_tokens` directly from Antigravity's local `transcript.jsonl` files across Antigravity 2.0, CLI, and IDE.
 - **Zero Dependencies & 100% Local**: Pure Node.js ESM (`>=22`). No `npm install`, no external analytics, no telemetry — all data stays on your machine under `~/.gemini/token-meter/`.
 - **Automatic Persistent Ledger**: A lightweight `Stop` lifecycle hook incrementally appends completed steps to monthly NDJSON files (`~/.gemini/token-meter/events/YYYY-MM.jsonl`). Historical stats survive even if old transcripts are later cleaned up.
-- **Live Side-Pane Dashboard**: Native Antigravity Auxiliary Pane UI synced automatically to your light/dark theme, with interactive SVG charts, model distribution, searchable/sortable sessions (click to jump straight to any chat), `USD $` / `CNY ¥` toggle, and one-click CSV export.
+- **Live Side-Pane Dashboard**: Native Antigravity Auxiliary Pane UI synced automatically to your light/dark theme, featuring:
+  - **Current Session / Turn Live Card**: Click-to-expand summary strip beside the chat showing model, turn steps, context window usage (`tokens / 1M` + progress bar), turn output, turn cumulative input (`new + cache read + hit rate`), total duration, and active-session TPS, with per-turn browsing.
+  - **Daily Analytics & Exports**: Interactive SVG charts (Cost & Stacked Tokens), model breakdown, searchable/sortable sessions (click to jump straight to any chat), `USD $` / `CNY ¥` toggle, and one-click CSV export.
 - **Official Google Gemini API Pricing**: Built-in Paid-Tier Global rate card supporting 95% implicit cache discounts on Gemini 4, date-aware introductory → standard transitions, and `≤200K` / `>200K` long-context tiers.
 
 ---

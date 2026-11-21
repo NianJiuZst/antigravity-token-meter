@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { buildReport, exportDailyCsv, localDateKey } from '../lib/ledger.mjs';
+import { buildReport, exportDailyCsv, getConversationLiveDetail, localDateKey } from '../lib/ledger.mjs';
 import { calcCostUsd, resolveModelRate } from '../lib/pricing.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -224,6 +224,64 @@ test('parent-model inheritance, concurrent Stop hooks, archive preservation, and
     assert.ok(csv.includes('est_cost_cny'));
     assert.ok(csv.includes('2023-01-01') && csv.includes('2026-11-18'));
   } finally {
+    h.cleanup();
+  }
+});
+
+test('live conversation detail: multi-turn context, active duration excluding idle gaps, session TPS, and safe convId', () => {
+  const h = createHarness();
+  const prevRoots = process.env.TOKEN_METER_BRAIN_ROOTS;
+  process.env.TOKEN_METER_BRAIN_ROOTS = h.brainDir;
+  try {
+    const cid = 'conv-live-001';
+    const tf = h.mkConv(cid);
+    writeFileSync(
+      tf,
+      [
+        // Turn 1: 20s active work, 1,000 output tokens
+        JSON.stringify({ step_index: 0, type: 'USER_INPUT', created_at: '2026-11-22T01:00:00Z', content: '<USER_REQUEST>Turn 1</USER_REQUEST>' }),
+        JSON.stringify({ step_index: 1, type: 'PLANNER_RESPONSE', status: 'DONE', created_at: '2026-11-22T01:00:00Z', model: 'gemini-4-neon-xhigh', input_tokens: 10000, cache_read_tokens: 0, output_tokens: 400 }),
+        JSON.stringify({ step_index: 2, type: 'GENERIC', status: 'DONE', created_at: '2026-11-22T01:00:10Z', content: 'Created At: 2026-11-22T01:00:10Z\nCompleted At: 2026-11-22T01:00:12Z\nok' }),
+        JSON.stringify({ step_index: 3, type: 'PLANNER_RESPONSE', status: 'DONE', created_at: '2026-11-22T01:00:20Z', model: 'gemini-4-neon-xhigh', input_tokens: 5000, cache_read_tokens: 10000, output_tokens: 600 }),
+        // 30-minute idle user pause before Turn 2 (must NOT inflate session active duration!)
+        JSON.stringify({ step_index: 4, type: 'USER_INPUT', created_at: '2026-11-22T01:30:00Z', content: '<USER_REQUEST>Turn 2</USER_REQUEST>' }),
+        JSON.stringify({ step_index: 5, type: 'PLANNER_RESPONSE', status: 'DONE', created_at: '2026-11-22T01:30:00Z', model: 'gemini-4-neon-xhigh', input_tokens: 2000, cache_read_tokens: 15000, output_tokens: 1000 }),
+        JSON.stringify({ step_index: 6, type: 'GENERIC', status: 'DONE', created_at: '2026-11-22T01:30:20Z', content: 'Created At: 2026-11-22T01:30:20Z\nCompleted At: 2026-11-22T01:30:30Z\nok' }),
+        JSON.stringify({ step_index: 7, type: 'PLANNER_RESPONSE', status: 'DONE', created_at: '2026-11-22T01:30:30Z', model: 'gemini-4-neon-xhigh', input_tokens: 3000, cache_read_tokens: 18000, output_tokens: 1500 }),
+      ].join('\n') + '\n',
+    );
+
+    // Path traversal convId rejected cleanly
+    assert.equal(getConversationLiveDetail('../etc/passwd'), null);
+
+    h.runCli('sync');
+    const rep = buildReport({ dataDir: h.dataDir, rangeDays: 7, activeConvId: cid, timeZone: 'UTC' });
+    const live = rep.liveConversation;
+    assert.ok(live);
+    assert.equal(live.turns.length, 2);
+
+    const t1 = live.turns[0];
+    const t2 = live.turns[1];
+    assert.equal(t1.steps, 2);
+    assert.equal(t1.output, 1000);
+    assert.equal(t1.durationSec, 20);
+    assert.equal(t1.contextTokens, 15600);
+
+    assert.equal(t2.steps, 2);
+    assert.equal(t2.input, 5000);
+    assert.equal(t2.cacheRead, 33000);
+    assert.equal(t2.output, 2500);
+    assert.equal(t2.contextTokens, 22500);
+    assert.equal(t2.contextWindow, 1_000_000);
+    assert.equal(t2.durationSec, 30);
+
+    // Session active duration = 20s + 30s = 50s (excluding 30-min idle gap); TPS = 3500 / 50 = 70 tok/s
+    assert.equal(live.session.durationSec, 50);
+    assert.equal(live.session.output, 3500);
+    assert.ok(Math.abs(live.session.tps - 70) < 1e-6, `expected 70 tok/s, got ${live.session.tps}`);
+  } finally {
+    if (prevRoots === undefined) delete process.env.TOKEN_METER_BRAIN_ROOTS;
+    else process.env.TOKEN_METER_BRAIN_ROOTS = prevRoots;
     h.cleanup();
   }
 });
