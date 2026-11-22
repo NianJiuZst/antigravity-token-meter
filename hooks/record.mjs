@@ -20,8 +20,10 @@ function main() {
     const payload = raw.trim() ? JSON.parse(raw) : {};
     const transcriptPath = typeof payload.transcriptPath === 'string' ? payload.transcriptPath : '';
     const convId = typeof payload.conversationId === 'string' ? payload.conversationId : '';
+    const payloadStopAt = Number(payload.stopAt);
+    const stopAt = Number.isFinite(payloadStopAt) && payloadStopAt > 0 ? payloadStopAt : Date.now();
     if (transcriptPath) {
-      syncSingleTranscript(transcriptPath, { convId });
+      syncSingleTranscript(transcriptPath, { convId, stopAt });
     }
   } catch (err) {
     process.stderr.write(`[token-meter hook] ${err?.message || err}\n`);
