@@ -180,108 +180,119 @@
     const hasSessDecode = sess.tpsMode === 'decode' && sess.tps > 0;
     const hasTurnLlm = turn.tps > 0;
     let displayTpsNum = 0;
-    let tpsScope = '会话模型';
+    let speedLabel = '生成速度';
+    let speedSub = '含首字延迟';
     if (hasTurnDecode) {
       displayTpsNum = turn.tps;
-      tpsScope = turn.avgTtftSec > 0 ? `本轮解码 · 首字 ${fmtDuration(turn.avgTtftSec)}` : '本轮解码';
+      speedLabel = '生成速度';
+      speedSub = turn.avgTtftSec > 0 ? `首字 ${fmtDuration(turn.avgTtftSec)}` : '纯解码';
     } else if (hasSessDecode) {
       displayTpsNum = sess.tps;
-      tpsScope = turn.avgTtftSec > 0 ? `会话解码 · 首字 ${fmtDuration(turn.avgTtftSec)}` : '会话解码';
+      speedLabel = '会话均速';
+      speedSub = turn.avgTtftSec > 0 ? `首字 ${fmtDuration(turn.avgTtftSec)}` : '纯解码';
     } else if (hasTurnLlm) {
       displayTpsNum = turn.tps;
-      tpsScope = '本轮模型';
+      speedLabel = '模型速率';
+      speedSub = '含首字延迟';
     } else {
       displayTpsNum = sess.tps;
-      tpsScope = '会话模型';
+      speedLabel = '会话速率';
+      speedSub = '含首字延迟';
     }
-    const tpsVal = displayTpsNum > 0 ? `${displayTpsNum.toFixed(1)} tok/s` : '—';
+
+    const tpsNumStr = displayTpsNum > 0 ? displayTpsNum.toFixed(1) : '—';
+    const tpsVal = displayTpsNum > 0 ? `${tpsNumStr} tok/s` : '—';
     const sessTpsVal = sess.tps > 0 ? `${sess.tps.toFixed(1)} tok/s` : '—';
-    const barParts = [
-      `<span class="live-bar-model">${esc(turn.modelLabel)}</span>`,
-      `<span class="live-bar-stat">In ${esc(fmtCompact(turn.totalInput))}</span>`,
-      `<span class="live-bar-stat">Out ${esc(fmtCompact(turn.output))}</span>`,
-      `<span class="live-bar-stat">Cache ${esc(fmtPct(turn.cacheHitRate))}</span>`,
-      ...(displayTpsNum > 0 ? [`<span class="live-bar-stat">${esc(tpsVal)}</span>`] : []),
-    ];
-    $('live-turn-bar-text').innerHTML = barParts.join('<span class="live-bar-dot">·</span>');
-
-    const toggleBtn = $('live-turn-toggle');
-    const cardEl = $('live-turn-card');
-    toggleBtn.setAttribute('aria-expanded', String(state.liveCardOpen));
-    cardEl.classList.toggle('hidden', !state.liveCardOpen);
-
     const ctxPctNum = Math.round((turn.contextPct || 0) * 100);
     const ctxBarW = Math.min(100, Math.max(0, ctxPctNum));
     const ctxClass = ctxPctNum >= 90 ? ' danger' : ctxPctNum >= 75 ? ' warn' : '';
-    const durSec = turn.durationSec > 0 ? turn.durationSec : sess.durationSec;
-    const durPrefix = turn.durationSec > 0 ? '总时长' : '会话总时长';
-    const durBreakdown =
-      turn.llmDurationSec > 0 && turn.toolDurationSec > 0
-        ? ` <span class="live-row-muted">(模型 ${esc(fmtDuration(turn.llmDurationSec))} · 工具 ${esc(fmtDuration(turn.toolDurationSec))})</span>`
-        : '';
-    const speedModeNote =
-      hasTurnDecode || hasSessDecode
-        ? `纯解码速度（已扣除首字等待 TTFT 与工具耗时，过滤突发包）· 本轮平均首字 ${fmtDuration(turn.avgTtftSec)}`
-        : '模型推理速度含首字/思考延迟（已剔除工具与审批等待）';
-    const durTip =
-      `${speedModeNote}` +
-      ` · 本轮模型 ${fmtDuration(turn.llmDurationSec)} / 工具 ${fmtDuration(turn.toolDurationSec)}` +
-      ` · 会话均速 ${sessTpsVal}${sess.avgTtftSec > 0 ? `（平均首字 ${fmtDuration(sess.avgTtftSec)}）` : ''}` +
-      ` · 累计活跃 ${fmtDuration(sess.durationSec)}，共 ${fmtInt(sess.output)} 输出 Token`;
     const turnCostStr = fmtMoney(turn.costUsd, report.prefs);
 
-    const pagerHtml =
-      totalTurns > 1
-        ? `
-        <span class="turn-pager" title="${esc(turn.prompt || `第 ${turn.turnIndex} 轮`)}">
-          <button type="button" class="turn-nav-btn" data-turn-nav="-1" ${idx === 0 ? 'disabled' : ''} aria-label="上一轮">‹</button>
-          <span class="turn-pager-label">第 ${turn.turnIndex}/${totalTurns} 轮</span>
-          <button type="button" class="turn-nav-btn" data-turn-nav="1" ${idx === totalTurns - 1 ? 'disabled' : ''} aria-label="下一轮">›</button>
-        </span>`
-        : '';
+    // Unified header
+    $('live-header-model').textContent = turn.modelLabel;
+    $('live-header-badge').classList.toggle('hidden', !live.isFallbackLatest);
+    $('live-step-pill').textContent = `${fmtInt(turn.steps)} 步`;
 
-    cardEl.innerHTML = `
-      <div class="live-card-head">
-        <div class="live-card-title-wrap">
-          <span class="live-card-model">${esc(turn.modelLabel)}</span>
-          ${live.isFallbackLatest ? '<span class="badge badge-fallback" title="独立打开模式，展示最近活跃会话">最近会话</span>' : ''}
-        </div>
-        <div class="live-card-right">
-          ${pagerHtml}
-          <span class="step-pill">${fmtInt(turn.steps)} 步</span>
-        </div>
-      </div>
-      <div class="live-card-rows">
-        <div class="live-row">
-          <span class="live-row-label">当前上下文</span>
-          <span class="live-row-val">${fmtInt(turn.contextTokens)} / ${esc(fmtWindow(turn.contextWindow))} (${ctxPctNum}%)</span>
+    const summaryParts = [
+      `<span>${ctxPctNum}%</span>`,
+      ...(displayTpsNum > 0 ? [`<span class="live-summary-accent">${esc(tpsVal)}</span>`] : []),
+      `<span>出 ${esc(fmtCompact(turn.output))}</span>`,
+    ];
+    $('live-collapsed-summary').innerHTML = summaryParts.join('<span class="live-summary-sep">·</span>');
+
+    const pagerEl = $('live-turn-pager');
+    if (totalTurns > 1) {
+      pagerEl.classList.remove('hidden');
+      pagerEl.title = turn.prompt || `第 ${turn.turnIndex} 轮`;
+      pagerEl.innerHTML = `
+        <button type="button" class="turn-nav-btn" data-turn-nav="-1" ${idx === 0 ? 'disabled' : ''} aria-label="上一轮">‹</button>
+        <span class="turn-pager-label">${turn.turnIndex}/${totalTurns}</span>
+        <button type="button" class="turn-nav-btn" data-turn-nav="1" ${idx === totalTurns - 1 ? 'disabled' : ''} aria-label="下一轮">›</button>
+      `;
+      pagerEl.querySelectorAll('.turn-nav-btn').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const delta = Number(btn.dataset.turnNav);
+          const nextTurn = Math.min(totalTurns, Math.max(1, turn.turnIndex + delta));
+          state.selectedTurnIdx = nextTurn === totalTurns ? null : nextTurn;
+          renderLiveConversation(report);
+        });
+      });
+    } else {
+      pagerEl.classList.add('hidden');
+      pagerEl.innerHTML = '';
+    }
+
+    syncLiveCardState();
+
+    const speedTip =
+      (hasTurnDecode || hasSessDecode
+        ? `纯解码速度（已扣除首字等待 TTFT 与工具耗时，过滤突发包）· 本轮平均首字 ${fmtDuration(turn.avgTtftSec)}`
+        : '模型推理速率含首字/思考延迟（已剔除工具与审批等待）') +
+      ` · 会话均速 ${sessTpsVal}${sess.avgTtftSec > 0 ? `（平均首字 ${fmtDuration(sess.avgTtftSec)}）` : ''}`;
+    const inputTip = `新增 ${fmtInt(turn.input)} + 读缓存 ${fmtInt(turn.cacheRead)} · 缓存命中率 ${fmtPct(turn.cacheHitRate)}`;
+    const outTip =
+      `本轮费用约 ${turnCostStr} · 总时长 ${fmtDuration(turn.durationSec)}` +
+      (turn.llmDurationSec > 0 ? `（模型 ${fmtDuration(turn.llmDurationSec)}${turn.toolDurationSec > 0 ? ` / 工具 ${fmtDuration(turn.toolDurationSec)}` : ''}）` : '') +
+      ` · 会话累计活跃 ${fmtDuration(sess.durationSec)}，共 ${fmtInt(sess.output)} 输出 Token`;
+    const ctxTip = `${fmtInt(turn.contextTokens)} / ${fmtInt(turn.contextWindow)} tokens (${ctxPctNum}%)`;
+
+    const cacheGoodCls = turn.cacheHitRate >= 0.5 ? ' live-metric-good' : '';
+    const durSub =
+      turn.durationSec > 0
+        ? `耗时 ${fmtDuration(turn.durationSec)}`
+        : sess.durationSec > 0
+          ? `会话 ${fmtDuration(sess.durationSec)}`
+          : `费用 ${turnCostStr}`;
+
+    $('live-turn-card').innerHTML = `
+      <div class="live-ctx-block" title="${esc(ctxTip)}">
+        <div class="live-ctx-labels">
+          <span>上下文<span class="live-ctx-pct${ctxClass}">${ctxPctNum}%</span></span>
+          <span class="live-ctx-ratio">${esc(fmtCompact(turn.contextTokens))} / ${esc(fmtWindow(turn.contextWindow))}</span>
         </div>
         <div class="ctx-bar-track" aria-hidden="true">
           <div class="ctx-bar-fill${ctxClass}" style="width:${ctxBarW}%"></div>
         </div>
-        <div class="live-row" title="本轮官方定价费用约 ${esc(turnCostStr)}">
-          <span class="live-row-label">本轮输出</span>
-          <span class="live-row-val">${fmtInt(turn.output)}</span>
+      </div>
+      <div class="live-metrics-grid">
+        <div class="live-metric" title="${esc(speedTip)}">
+          <span class="live-metric-label">${esc(speedLabel)}</span>
+          <span class="live-metric-val">${esc(tpsNumStr)}${displayTpsNum > 0 ? '<span class="live-metric-unit">tok/s</span>' : ''}</span>
+          <span class="live-metric-sub">${esc(speedSub)}</span>
         </div>
-        <div class="live-row">
-          <span class="live-row-label">本轮累计输入</span>
-          <span class="live-row-val">新增 ${fmtInt(turn.input)} + 读缓存 ${fmtInt(turn.cacheRead)} <span class="live-row-muted">(命中率 ${esc(fmtPct(turn.cacheHitRate))})</span></span>
+        <div class="live-metric" title="${esc(inputTip)}">
+          <span class="live-metric-label">本轮输入</span>
+          <span class="live-metric-val">${esc(fmtCompact(turn.totalInput))}</span>
+          <span class="live-metric-sub">新增 ${esc(fmtCompact(turn.input))} · <span class="${cacheGoodCls.trim()}">${esc(fmtPct(turn.cacheHitRate))}</span></span>
         </div>
-        <div class="live-row" title="${esc(durTip)}">
-          <span class="live-row-label">速度与耗时</span>
-          <span class="live-row-val">${esc(tpsVal)} <span class="live-row-muted">(${esc(tpsScope)}) · ${durPrefix}</span> ${esc(fmtDuration(durSec))}${durBreakdown}</span>
+        <div class="live-metric" title="${esc(outTip)}">
+          <span class="live-metric-label">本轮输出</span>
+          <span class="live-metric-val">${fmtInt(turn.output)}</span>
+          <span class="live-metric-sub">${esc(durSub)}</span>
         </div>
       </div>
     `;
-
-    cardEl.querySelectorAll('.turn-nav-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const delta = Number(btn.dataset.turnNav);
-        const nextTurn = Math.min(totalTurns, Math.max(1, turn.turnIndex + delta));
-        state.selectedTurnIdx = nextTurn === totalTurns ? null : nextTurn;
-        renderLiveConversation(report);
-      });
-    });
   }
 
   // ---------- Rendering ----------
@@ -698,16 +709,33 @@
     });
   }
 
-  // ---------- Event Wiring ----------
-  $('live-turn-toggle').addEventListener('click', () => {
+  function syncLiveCardState() {
+    const open = state.liveCardOpen;
+    $('live-turn-box').classList.toggle('is-collapsed', !open);
+    $('live-turn-header').setAttribute('aria-expanded', String(open));
+    const collapseEl = $('live-turn-collapse');
+    collapseEl.setAttribute('aria-hidden', String(!open));
+    collapseEl.inert = !open;
+  }
+
+  function toggleLiveCard() {
     state.liveCardOpen = !state.liveCardOpen;
     try {
       localStorage.setItem('tm_live_card_open', state.liveCardOpen ? '1' : '0');
     } catch {
       // ignore
     }
-    $('live-turn-toggle').setAttribute('aria-expanded', String(state.liveCardOpen));
-    $('live-turn-card').classList.toggle('hidden', !state.liveCardOpen);
+    syncLiveCardState();
+  }
+
+  // ---------- Event Wiring ----------
+  $('live-turn-header').addEventListener('click', toggleLiveCard);
+  $('live-turn-header').addEventListener('keydown', (e) => {
+    if (e.target !== $('live-turn-header')) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      toggleLiveCard();
+    }
   });
 
   document.querySelectorAll('.tab').forEach((btn) => {
