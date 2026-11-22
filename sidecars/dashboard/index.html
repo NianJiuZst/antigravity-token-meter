@@ -63,15 +63,27 @@
     </header>
 
     <main class="main">
-      <!-- Live Current Conversation / Turn Card (always accessible beside chat) -->
+      <!-- Live Current Conversation / Turn Card (unified collapsible telemetry card) -->
       <section id="live-turn-box" class="live-turn-box hidden" aria-label="当前会话实时统计">
-        <button id="live-turn-toggle" type="button" class="live-turn-bar" aria-expanded="true" aria-controls="live-turn-card">
-          <span id="live-turn-bar-text" class="live-turn-bar-text"></span>
-          <svg class="icon live-turn-chevron" viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M4.5 6.25 8 9.75l3.5-3.5"/>
-          </svg>
-        </button>
-        <div id="live-turn-card" class="live-turn-card"></div>
+        <div id="live-turn-header" class="live-turn-header" role="button" tabindex="0" aria-expanded="true" aria-controls="live-turn-collapse">
+          <div class="live-header-left">
+            <span id="live-header-model" class="live-card-model"></span>
+            <span id="live-header-badge" class="badge badge-fallback hidden" title="独立打开模式，展示最近活跃会话">最近会话</span>
+            <span id="live-collapsed-summary" class="live-collapsed-summary"></span>
+          </div>
+          <div class="live-header-right">
+            <span id="live-turn-pager" class="turn-pager hidden"></span>
+            <span id="live-step-pill" class="step-pill"></span>
+            <svg class="icon live-turn-chevron" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M4.5 6.25 8 9.75l3.5-3.5"/>
+            </svg>
+          </div>
+        </div>
+        <div id="live-turn-collapse" class="live-turn-collapse">
+          <div class="live-turn-collapse-inner">
+            <div id="live-turn-card" class="live-turn-body"></div>
+          </div>
+        </div>
       </section>
 
       <!-- Tab 1: Overview -->
