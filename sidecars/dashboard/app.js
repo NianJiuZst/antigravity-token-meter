@@ -176,13 +176,32 @@
 
     box.classList.remove('hidden');
 
-    const tpsVal = sess.tps > 0 ? `${sess.tps.toFixed(1)} tok/s` : '—';
+    const hasTurnDecode = turn.tpsMode === 'decode' && turn.tps > 0;
+    const hasSessDecode = sess.tpsMode === 'decode' && sess.tps > 0;
+    const hasTurnLlm = turn.tps > 0;
+    let displayTpsNum = 0;
+    let tpsScope = '会话模型';
+    if (hasTurnDecode) {
+      displayTpsNum = turn.tps;
+      tpsScope = turn.avgTtftSec > 0 ? `本轮解码 · 首字 ${fmtDuration(turn.avgTtftSec)}` : '本轮解码';
+    } else if (hasSessDecode) {
+      displayTpsNum = sess.tps;
+      tpsScope = turn.avgTtftSec > 0 ? `会话解码 · 首字 ${fmtDuration(turn.avgTtftSec)}` : '会话解码';
+    } else if (hasTurnLlm) {
+      displayTpsNum = turn.tps;
+      tpsScope = '本轮模型';
+    } else {
+      displayTpsNum = sess.tps;
+      tpsScope = '会话模型';
+    }
+    const tpsVal = displayTpsNum > 0 ? `${displayTpsNum.toFixed(1)} tok/s` : '—';
+    const sessTpsVal = sess.tps > 0 ? `${sess.tps.toFixed(1)} tok/s` : '—';
     const barParts = [
       `<span class="live-bar-model">${esc(turn.modelLabel)}</span>`,
       `<span class="live-bar-stat">In ${esc(fmtCompact(turn.totalInput))}</span>`,
       `<span class="live-bar-stat">Out ${esc(fmtCompact(turn.output))}</span>`,
       `<span class="live-bar-stat">Cache ${esc(fmtPct(turn.cacheHitRate))}</span>`,
-      ...(sess.tps > 0 ? [`<span class="live-bar-stat">${esc(tpsVal)}</span>`] : []),
+      ...(displayTpsNum > 0 ? [`<span class="live-bar-stat">${esc(tpsVal)}</span>`] : []),
     ];
     $('live-turn-bar-text').innerHTML = barParts.join('<span class="live-bar-dot">·</span>');
 
@@ -196,7 +215,19 @@
     const ctxClass = ctxPctNum >= 90 ? ' danger' : ctxPctNum >= 75 ? ' warn' : '';
     const durSec = turn.durationSec > 0 ? turn.durationSec : sess.durationSec;
     const durPrefix = turn.durationSec > 0 ? '总时长' : '会话总时长';
-    const durTip = `本轮时长 ${fmtDuration(turn.durationSec)} · 当前会话累计活跃 ${fmtDuration(sess.durationSec)} · 共 ${fmtInt(sess.output)} 输出 Token`;
+    const durBreakdown =
+      turn.llmDurationSec > 0 && turn.toolDurationSec > 0
+        ? ` <span class="live-row-muted">(模型 ${esc(fmtDuration(turn.llmDurationSec))} · 工具 ${esc(fmtDuration(turn.toolDurationSec))})</span>`
+        : '';
+    const speedModeNote =
+      hasTurnDecode || hasSessDecode
+        ? `纯解码速度（已扣除首字等待 TTFT 与工具耗时，过滤突发包）· 本轮平均首字 ${fmtDuration(turn.avgTtftSec)}`
+        : '模型推理速度含首字/思考延迟（已剔除工具与审批等待）';
+    const durTip =
+      `${speedModeNote}` +
+      ` · 本轮模型 ${fmtDuration(turn.llmDurationSec)} / 工具 ${fmtDuration(turn.toolDurationSec)}` +
+      ` · 会话均速 ${sessTpsVal}${sess.avgTtftSec > 0 ? `（平均首字 ${fmtDuration(sess.avgTtftSec)}）` : ''}` +
+      ` · 累计活跃 ${fmtDuration(sess.durationSec)}，共 ${fmtInt(sess.output)} 输出 Token`;
     const turnCostStr = fmtMoney(turn.costUsd, report.prefs);
 
     const pagerHtml =
@@ -238,7 +269,7 @@
         </div>
         <div class="live-row" title="${esc(durTip)}">
           <span class="live-row-label">速度与耗时</span>
-          <span class="live-row-val">${esc(tpsVal)} <span class="live-row-muted">(当前会话) · ${durPrefix}</span> ${esc(fmtDuration(durSec))}</span>
+          <span class="live-row-val">${esc(tpsVal)} <span class="live-row-muted">(${esc(tpsScope)}) · ${durPrefix}</span> ${esc(fmtDuration(durSec))}${durBreakdown}</span>
         </div>
       </div>
     `;
